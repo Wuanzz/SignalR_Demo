@@ -2,24 +2,115 @@
     ViewData["Title"] = "SignalR Real-time Chat";
 }
 
-<div class="container mt-5">
-    <div class="row">
-        <div class="col-md-6 offset-md-3">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Ứng dụng Chat Thời gian thực</h5>
+<style>
+    /* CSS Tùy chỉnh cho Giao diện Chat */
+    .chat-container {
+        height: 500px;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .message-row {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 15px;
+    }
+
+    /* Bong bóng chat chung */
+    .chat-bubble {
+        max-width: 75%;
+        padding: 10px 15px;
+        border-radius: 20px;
+        position: relative;
+    }
+
+    .sender-name {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+
+    /* Tin nhắn của mình (Nằm bên phải, màu xanh) */
+    .row-mine {
+        align-items: flex-end;
+    }
+
+        .row-mine .chat-bubble {
+            background-color: #0d6efd;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .row-mine .sender-name {
+            display: none;
+        }
+    /* Ẩn tên của chính mình cho đỡ rối */
+
+    /* Tin nhắn của người khác (Nằm bên trái, màu xám) */
+    .row-theirs {
+        align-items: flex-start;
+    }
+
+        .row-theirs .chat-bubble {
+            background-color: #e4e6eb;
+            color: #050505;
+            border-bottom-left-radius: 4px;
+        }
+
+    /* Thông báo hệ thống */
+    .system-message {
+        text-align: center;
+        color: #adb5bd;
+        font-size: 0.85rem;
+        font-style: italic;
+        margin: 10px 0;
+        width: 100%;
+    }
+
+    /* Hiệu ứng đang gõ */
+    #typingIndicator {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-style: italic;
+        display: none;
+        margin-top: 10px;
+    }
+</style>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 fw-bold text-primary">Phòng Chat Chung</h5>
+                    <span class="badge bg-success rounded-pill">Online</span>
                 </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <input type="text" id="userInput" class="form-control" placeholder="Tên của bạn..." value="Sinh viên 49.01.104.119" />
+
+                <div class="card-body p-0">
+                    <div id="chatContainer" class="chat-container m-3">
+                        <div class="system-message">Chào mừng đến với hệ thống chat!</div>
                     </div>
-                    <div class="mb-3">
-                        <textarea id="messageInput" class="form-control" placeholder="Nhập tin nhắn..." rows="2"></textarea>
-                    </div>
-                    <button id="sendButton" class="btn btn-success w-100">Gửi tin nhắn</button>
                 </div>
-                <div class="card-footer bg-light" style="height: 300px; overflow-y: auto;">
-                    <ul id="messagesList" class="list-unstyled"></ul>
+
+                <div class="card-footer bg-white border-top p-3">
+                    <div id="typingIndicator">Ai đó đang gõ...</div>
+                    <div class="row g-2 align-items-center mt-1">
+                        <div class="col-md-3">
+                            <input type="text" id="userInput" class="form-control" placeholder="Nhập tên của bạn..." value="Quân" />
+                        </div>
+                        <div class="col-md-7">
+                            <input type="text" id="messageInput" class="form-control" placeholder="Nhập tin nhắn..." autocomplete="off" />
+                        </div>
+                        <div class="col-md-2">
+                            <button id="sendButton" class="btn btn-primary w-100">Gửi</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -27,33 +118,83 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
-
 <script>
-    // 1. Khởi tạo kết nối tới Hub
-    const connection = new signalR.HubConnectionBuilder()
-        .withUrl("/chatHub")
-        .build();
+    const connection = new signalR.HubConnectionBuilder().withUrl("/chatHub").build();
+    const chatContainer = document.getElementById("chatContainer");
+    let typingTimer;
 
-    // 2. Lắng nghe sự kiện "ReceiveMessage" từ Server gửi xuống
+    // Hàm tự động cuộn xuống cuối cùng
+    function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // 1. Nhận tin nhắn thông thường
     connection.on("ReceiveMessage", (user, message) => {
-        const li = document.createElement("li");
-        li.innerHTML = `<strong>${user}:</strong> ${message}`;
-        li.className = "border-bottom py-2";
-        document.getElementById("messagesList").appendChild(li);
+        const currentUser = document.getElementById("userInput").value;
+        const isMine = user === currentUser;
+
+        const rowDiv = document.createElement("div");
+        rowDiv.className = `message-row ${isMine ? 'row-mine' : 'row-theirs'}`;
+
+        rowDiv.innerHTML = `
+            ${!isMine ? `<div class="sender-name">${user}</div>` : ''}
+            <div class="chat-bubble shadow-sm">${message}</div>
+        `;
+
+        chatContainer.appendChild(rowDiv);
+        scrollToBottom();
+
+        // Có tin nhắn mới thì ẩn chữ "đang gõ" đi
+        document.getElementById("typingIndicator").style.display = "none";
     });
 
-    // 3. Bắt đầu kết nối
+    // 2. Nhận thông báo hệ thống (Ra/Vào)
+    connection.on("ReceiveSystemMessage", (message) => {
+        const div = document.createElement("div");
+        div.className = "system-message";
+        div.textContent = message;
+        chatContainer.appendChild(div);
+        scrollToBottom();
+    });
+
+    // 3. Nhận sự kiện có người đang gõ
+    connection.on("UserTyping", (user) => {
+        const indicator = document.getElementById("typingIndicator");
+        indicator.textContent = `${user} đang gõ...`;
+        indicator.style.display = "block";
+
+        // Tự động ẩn sau 2 giây nếu không gõ nữa
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => {
+            indicator.style.display = "none";
+        }, 2000);
+    });
+
     connection.start().catch(err => console.error(err.toString()));
 
-    // 4. Bắt sự kiện Click nút gửi
-    document.getElementById("sendButton").addEventListener("click", event => {
-        const user = document.getElementById("userInput").value;
-        const message = document.getElementById("messageInput").value;
+    // Bắt sự kiện Click nút gửi
+    document.getElementById("sendButton").addEventListener("click", sendMessage);
 
-        // Gọi hàm "SendMessage" trên Server Hub
-        connection.invoke("SendMessage", user, message).catch(err => console.error(err.toString()));
-
-        document.getElementById("messageInput").value = ""; // Xóa nội dung sau khi gửi
-        event.preventDefault();
+    // Bắt sự kiện nhấn Enter ở ô nhập tin nhắn
+    document.getElementById("messageInput").addEventListener("keypress", function (e) {
+        if (e.key === 'Enter') {
+            sendMessage();
+        } else {
+            // Khi người dùng đang gõ phím, bắn sự kiện lên Server
+            const user = document.getElementById("userInput").value;
+            connection.invoke("Typing", user).catch(err => console.error(err.toString()));
+        }
     });
+
+    function sendMessage() {
+        const user = document.getElementById("userInput").value;
+        const messageInput = document.getElementById("messageInput");
+        const message = messageInput.value;
+
+        if (message.trim() !== "") {
+            connection.invoke("SendMessage", user, message).catch(err => console.error(err.toString()));
+            messageInput.value = "";
+            messageInput.focus();
+        }
+    }
 </script>
