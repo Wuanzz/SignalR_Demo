@@ -1,10 +1,19 @@
 ﻿using SignalR_Demo.Hubs;
+using Microsoft.EntityFrameworkCore;
+using SignalR_Demo.Models;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))); // Đăng ký DbContext với chuỗi kết nối từ appsettings.json
 builder.Services.AddSignalR(); // Đăng ký dịch vụ SignalR để sử dụng trong ứng dụng
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options => {
+        options.LoginPath = "/Account/Login"; // Đường dẫn đến trang đăng nhập
+    });
 
 var app = builder.Build();
 
@@ -21,6 +30,7 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 // Định nghĩa endpoint cho SignalR Hub

@@ -1,33 +1,59 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
+using SignalR_Demo.Models;
 
 namespace SignalR_Demo.Hubs
 {
+    [Authorize]
     public class ChatHub : Hub
     {
-        // 1. Gửi tin nhắn bình thường
-        public async Task SendMessage(string user, string message)
+        private readonly ApplicationDbContext _context;
+
+        public ChatHub(ApplicationDbContext context)
         {
+            _context = context;
+        }
+
+        // 1. Chỉ nhận 1 tham số 'message' từ Client
+        public async Task SendMessage(string message)
+        {
+            // Tự động lấy tên người dùng từ Cookie
+            string user = Context.User?.Identity?.Name ?? "Unknown";
+
+            // Lưu vào Database
+            var chatMsg = new ChatMessage
+            {
+                User = user,
+                Message = message,
+                Timestamp = DateTime.Now
+            };
+
+            _context.ChatMessages.Add(chatMsg);
+            await _context.SaveChangesAsync();
+
+            // Phát tin nhắn đi (truyền đủ 2 tham số xuống lại Client)
             await Clients.All.SendAsync("ReceiveMessage", user, message);
         }
 
-        // 2. Xử lý tính năng "Ai đó đang gõ..."
+        // 2. Xử lý trạng thái đang gõ (Chỉ nhận 1 tham số từ Client)
         public async Task Typing(string user)
         {
-            // Bắn tín hiệu "đang gõ" cho tất cả mọi người TRỪ người đang gõ
             await Clients.Others.SendAsync("UserTyping", user);
         }
 
-        // 3. Thông báo hệ thống khi có người kết nối
+        // 3. Thông báo người mới vào
         public override async Task OnConnectedAsync()
         {
-            await Clients.Others.SendAsync("ReceiveSystemMessage", "Một người dùng vừa tham gia phòng chat.");
+            string userName = Context.User?.Identity?.Name ?? "Ai đó";
+            await Clients.Others.SendAsync("ReceiveSystemMessage", $"{userName} vừa tham gia phòng chat.");
             await base.OnConnectedAsync();
         }
 
-        // 4. Thông báo hệ thống khi có người thoát/đóng tab
+        // 4. Thông báo người rời đi
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            await Clients.All.SendAsync("ReceiveSystemMessage", "Một người dùng đã rời khỏi phòng chat.");
+            string userName = Context.User?.Identity?.Name ?? "Ai đó";
+            await Clients.All.SendAsync("ReceiveSystemMessage", $"{userName} đã rời khỏi phòng chat.");
             await base.OnDisconnectedAsync(exception);
         }
     }
