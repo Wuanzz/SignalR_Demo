@@ -1,7 +1,10 @@
+﻿using SignalR_Demo.Hubs;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddSignalR(); // Đăng ký dịch vụ SignalR để sử dụng trong ứng dụng
 
 var app = builder.Build();
 
@@ -19,6 +22,9 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.UseAuthorization();
+
+// Định nghĩa endpoint cho SignalR Hub
+app.MapHub<ChatHub>("/chatHub");
 
 app.MapControllerRoute(
     name: "default",
