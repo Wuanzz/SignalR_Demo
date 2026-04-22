@@ -26,6 +26,7 @@ namespace SignalR_Demo.Controllers
         {
             // Lấy 50 tin nhắn gần nhất
             var history = _context.ChatMessages
+                                  .Where(m => m.Room == "Chung")
                                   .OrderByDescending(m => m.Timestamp)
                                   .Take(50)
                                   .OrderBy(m => m.Timestamp)
@@ -71,6 +72,24 @@ namespace SignalR_Demo.Controllers
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+
+        // API để lấy lịch sử chat 
+        [HttpGet]
+        public IActionResult GetChatHistory(string room)
+        {
+            var history = _context.ChatMessages
+                                  .Where(m => m.Room == room)
+                                  .OrderByDescending(m => m.Timestamp)
+                                  .Take(50)
+                                  .OrderBy(m => m.Timestamp)
+                                  .Select(m => new {
+                                      user = m.User,
+                                      message = m.Message,
+                                      timestamp = m.Timestamp.ToString("HH:mm dd/MM/yyyy")
+                                  })
+                                  .ToList();
+            return Json(history);
         }
     }
 }

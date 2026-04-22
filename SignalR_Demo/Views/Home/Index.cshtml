@@ -185,7 +185,14 @@
                 <div class="col-md-9">
                     <div class="card shadow-sm border-0">
                         <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
-                            <h5 class="mb-0 fw-bold text-primary">Phòng Chat Chung</h5>
+                            <div class="d-flex align-items-center">
+                                <h5 class="mb-0 fw-bold text-primary me-3" id="roomTitle">Phòng Chat Chung</h5>
+                                <select id="roomSelect" class="form-select form-select-sm" style="width: auto;">
+                                    <option value="Chung">Phòng Chung</option>
+                                    <option value="Học tập">Phòng Học tập</option>
+                                    <option value="Giải trí">Phòng Giải trí</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="card-body p-0">
@@ -267,17 +274,20 @@
         // Lấy tên người dùng hiện tại trực tiếp từ Razor để JavaScript sử dụng
         const currentUser = '@Html.Raw(User.Identity?.Name)';
 
+        // Biến lưu trữ phòng hiện tại
+        let currentRoom = "Chung";
+
         function scrollToBottom() {
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // Nhận tin nhắn
-        connection.on("ReceiveMessage", (user, message) => {
+		// Hiển thị tin nhắn mới (cả text và ảnh)
+        function renderMessage(user, message) {
             const isMine = user === currentUser;
             const rowDiv = document.createElement("div");
             rowDiv.className = `message-row ${isMine ? 'row-mine' : 'row-theirs'}`;
 
-            // Kiểm tra xem tin nhắn có chứa file đường dẫn ảnh từ thư mục upload không
+            // Kiểm tra xem tin nhắn có chứa file đường dẫn ảnh không
             const isImageUrl = message.startsWith("/uploads/") || message.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null;
 
             let contentHtml = "";
@@ -293,6 +303,45 @@
             `;
 
             chatContainer.appendChild(rowDiv);
+        }
+
+        connection.start().then(() => {
+            // Khi vừa kết nối xong, tự động Join vào phòng mặc định
+            connection.invoke("JoinRoom", currentRoom).catch(err => console.error(err.toString()));
+        }).catch(err => console.error(err.toString()));
+
+        // Xử lý sự kiện khi người dùng chọn đổi phòng ở Dropdown
+        document.getElementById("roomSelect").addEventListener("change", async function() {
+            const newRoom = this.value;
+            currentRoom = newRoom; // Cập nhật biến phòng hiện tại
+            document.getElementById("roomTitle").innerText = "Phòng Chat " + newRoom;
+
+            // Báo cho Server biết để đổi phòng (SignalR Group)
+            connection.invoke("JoinRoom", newRoom).catch(err => console.error(err.toString()));
+
+            // Xóa khung chat và hiện chữ chờ
+            chatContainer.innerHTML = '<div class="system-message">Đang chuyển sang phòng ' + newRoom + '...</div>';
+
+            // Gọi API lấy lịch sử tin nhắn của phòng mới
+            try {
+                const response = await fetch(`/Home/GetChatHistory?room=${encodeURIComponent(newRoom)}`);
+                const history = await response.json();
+
+                chatContainer.innerHTML = '<div class="system-message">Chào mừng bạn đến với phòng ' + newRoom + '!</div>';
+
+                history.forEach(msg => {
+                    // Tái sử dụng hàm render ở trên
+                    renderMessage(msg.user, msg.message);
+                });
+                scrollToBottom();
+            } catch (err) {
+                console.error("Lỗi tải lịch sử:", err);
+            }
+        });
+
+        // Nhận tin nhắn mới
+        connection.on("ReceiveMessage", (user, message) => {
+            renderMessage(user, message);
             scrollToBottom();
             document.getElementById("typingIndicator").style.display = "none";
         });
@@ -318,98 +367,19 @@
             }, 2000);
         });
 
-        connection.start().catch(err => console.error(err.toString()));
-
-        // Xử lý gửi tin nhắn
-        document.getElementById("sendButton").addEventListener("click", sendMessage);
-
-        document.getElementById("messageInput").addEventListener("keypress", function (e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            } else {
-                // Gửi tên người đang gõ lên Hub
-                connection.invoke("Typing", currentUser).catch(err => console.error(err.toString()));
-            }
-        });
-
-		// Xử lý gửi ảnh
-        document.getElementById("imgButton").addEventListener("click", () => {
-            document.getElementById("fileInput").click(); // Mở hộp thoại chọn file
-        });
-
-		// Khi người dùng chọn file, sẽ tự động gửi ảnh lên Server
-        document.getElementById("fileInput").addEventListener("change", async function() {
-            const file = this.files[0];
-            if (!file) return;
-
-            // Hiển thị chữ đang tải để UX tốt hơn
-            const indicator = document.getElementById("typingIndicator");
-            indicator.textContent = "Đang tải ảnh lên...";
-            indicator.style.display = "block";
-
-            // Chuẩn bị dữ liệu gửi đi (FormData)
-            const formData = new FormData();
-            formData.append("file", file);
-
-            try {
-                // Gửi HTTP POST lên API UploadImage
-                const response = await fetch('/Home/UploadImage', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await response.json();
-
-                if (response.ok && data.url) {
-                    // Upload thành công, dùng SignalR gửi URL đó cho mọi người
-                    connection.invoke("SendMessage", data.url).catch(err => console.error(err.toString()));
-                } else {
-                    alert("Lỗi tải ảnh: " + data.message);
-                }
-            } catch (err) {
-                console.error("Lỗi hệ thống:", err);
-                alert("Không thể tải ảnh lên Server.");
-            } finally {
-                indicator.style.display = "none";
-                this.value = ''; // Reset thẻ input file
-            }
-        });
-
-        function sendMessage() {
-            const messageInput = document.getElementById("messageInput");
-            const message = messageInput.value;
-
-            if (message.trim() !== "") {
-                // Do Hub đã tự nhận diện tên người gửi, ta chỉ cần truyền nội dung tin nhắn lên
-                connection.invoke("SendMessage", message).catch(err => console.error(err.toString()));
-                messageInput.value = "";
-                messageInput.focus();
-            }
-        }
-
-        window.onload = function() {
-            scrollToBottom();
-        };
-
-		// Cập nhật danh sách người dùng trực tuyến
+        // Cập nhật danh sách người dùng trực tuyến
         connection.on("UpdateOnlineUsers", (users) => {
             const userList = document.getElementById("onlineUsersList");
             const onlineCount = document.getElementById("onlineCount");
-    
-            // Cập nhật số lượng
+
             onlineCount.innerText = users.length;
-    
-            // Xóa trắng danh sách cũ
             userList.innerHTML = "";
-    
-            // Vẽ lại danh sách mới
+
             users.forEach(u => {
                 const li = document.createElement("li");
                 li.className = "list-group-item border-0 px-2 py-2 d-flex align-items-center";
-        
-                // Kiểm tra nếu là chính mình thì bôi đậm lên cho dễ nhìn
                 const isMe = u === currentUser;
-        
+
                 li.innerHTML = `
                     <span class="text-success me-2" style="font-size: 0.8rem;">●</span>
                     <span class="${isMe ? 'fw-bold' : ''}">${u} ${isMe ? '(Bạn)' : ''}</span>
@@ -418,22 +388,84 @@
             });
         });
 
-        // Dùng Ủy quyền sự kiện (Lắng nghe toàn bộ khu vực chat)
+        // Gửi tin nhắn Text
+        function sendMessage() {
+            const messageInput = document.getElementById("messageInput");
+            const message = messageInput.value;
+
+            if (message.trim() !== "") {
+                // TRUYỀN THÊM currentRoom ĐỂ SERVER BIẾT GỬI VÀO PHÒNG NÀO
+                connection.invoke("SendMessage", currentRoom, message).catch(err => console.error(err.toString()));
+                messageInput.value = "";
+                messageInput.focus();
+            }
+        }
+
+        document.getElementById("sendButton").addEventListener("click", sendMessage);
+
+        document.getElementById("messageInput").addEventListener("keypress", function (e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            } else {
+                connection.invoke("Typing", currentRoom).catch(err => console.error(err.toString()));
+            }
+        });
+
+        // Xử lý gửi ảnh (Upload File)
+        document.getElementById("imgButton").addEventListener("click", () => {
+            document.getElementById("fileInput").click();
+        });
+
+        document.getElementById("fileInput").addEventListener("change", async function() {
+            const file = this.files[0];
+            if (!file) return;
+
+            const indicator = document.getElementById("typingIndicator");
+            indicator.textContent = "Đang tải ảnh lên...";
+            indicator.style.display = "block";
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const response = await fetch('/Home/UploadImage', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.url) {
+                    // Upload thành công, gửi URL vào đúng PHÒNG HIỆN TẠI
+                    connection.invoke("SendMessage", currentRoom, data.url).catch(err => console.error(err.toString()));
+                } else {
+                    alert("Lỗi tải ảnh: " + data.message);
+                }
+            } catch (err) {
+                console.error("Lỗi hệ thống:", err);
+                alert("Không thể tải ảnh lên Server.");
+            } finally {
+                indicator.style.display = "none";
+                this.value = '';
+            }
+        });
+
+        window.onload = function() {
+            scrollToBottom();
+        };
+
+        // Phóng to ảnh (Lightbox)
         document.getElementById('chatContainer').addEventListener('click', function(e) {
-            // Nếu click trúng một phần tử có class 'chat-image'
             if (e.target && e.target.classList.contains('chat-image')) {
                 const modal = document.getElementById('imageModal');
                 const modalImg = document.getElementById('expandedImg');
-
-                // Hiện lớp đen và gán link ảnh vào
                 modal.style.display = "block";
                 modalImg.src = e.target.src;
             }
         });
 
-        // Tắt ảnh khi click vào dấu X hoặc click ra ngoài vùng đen
+        // Đóng ảnh
         document.getElementById('imageModal').addEventListener('click', function(e) {
-            // Chỉ đóng khi click vào lớp nền (imageModal) hoặc dấu X (close-modal)
             if (e.target.id === 'imageModal' || e.target.classList.contains('close-modal')) {
                 this.style.display = "none";
             }
