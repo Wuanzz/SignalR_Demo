@@ -146,14 +146,30 @@
                                     @foreach (var msg in Model)
                                     {
                                         var isMine = msg.User == User.Identity?.Name;
+
+                                        // C# Logic: Kiểm tra xem tin nhắn có phải là đường dẫn ảnh không
+                                        var isImage = msg.Message.StartsWith("/uploads/") ||
+                                        msg.Message.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                                        msg.Message.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                                        msg.Message.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
+                                        msg.Message.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+
                                         <div class="message-row @(isMine ? "row-mine" : "row-theirs")">
                                             @if (!isMine)
                                             {
                                                 <div class="sender-name">@msg.User</div>
                                             }
-                                            <div class="chat-bubble shadow-sm" title="@msg.Timestamp.ToString("HH:mm dd/MM/yyyy")">
-                                                @msg.Message
-                                            </div>
+
+                                            @if (isImage)
+                                            {
+                                                <img src="@msg.Message" class="chat-image shadow-sm" alt="Đã gửi một ảnh" title="@msg.Timestamp.ToString("HH:mm dd/MM/yyyy")" />
+                                            }
+                                            else
+                                            {
+                                                <div class="chat-bubble shadow-sm" title="@msg.Timestamp.ToString("HH:mm dd/MM/yyyy")">
+                                                    @msg.Message
+                                                </div>
+                                            }
                                         </div>
                                     }
                                 }
