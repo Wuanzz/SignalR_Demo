@@ -50,26 +50,26 @@
             align-items: flex-end;
         }
 
-            .row-mine .chat-bubble {
-                background-color: #0d6efd;
-                color: white;
-                border-bottom-right-radius: 4px;
-            }
+        .row-mine .chat-bubble {
+            background-color: #0d6efd;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
 
-            .row-mine .sender-name {
-                display: none;
-            }
+        .row-mine .sender-name {
+            display: none;
+        }
 
         /* Tin nhắn của người khác (Nằm bên trái, màu xám) */
         .row-theirs {
             align-items: flex-start;
         }
 
-            .row-theirs .chat-bubble {
-                background-color: #e4e6eb;
-                color: #050505;
-                border-bottom-left-radius: 4px;
-            }
+        .row-theirs .chat-bubble {
+            background-color: #e4e6eb;
+            color: #050505;
+            border-bottom-left-radius: 4px;
+        }
 
         /* Thông báo hệ thống */
         .system-message {
@@ -103,6 +103,57 @@
         /* Hiệu ứng khi hover vào ảnh */
         .chat-image:hover {
             transform: scale(1.02);
+        }
+
+        /* CSS cho Lightbox Phóng to ảnh */
+        .image-modal {
+            display: none; /* Ẩn đi khi chưa click */
+            position: fixed;
+            z-index: 1050; /* Cho nổi lên trên tất cả mọi thứ */
+            padding-top: 5vh;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85); /* Nền đen trong suốt */
+            backdrop-filter: blur(5px); /* Làm mờ phần nền đằng sau */
+        }
+
+        .image-modal img.modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 85vh;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            animation: zoomIn 0.3s ease; /* Hiệu ứng nảy lên */
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .close-modal:hover {
+            color: #bbb;
+        }
+
+        @@keyframes zoomIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -199,6 +250,12 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    @* Modal hiển thị ảnh lớn khi click vào ảnh nhỏ trong chat *@
+    <div id="imageModal" class="image-modal">
+        <span class="close-modal">&times;</span>
+        <img class="modal-content" id="expandedImg">
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
@@ -359,6 +416,27 @@
                 `;
                 userList.appendChild(li);
             });
+        });
+
+        // Dùng Ủy quyền sự kiện (Lắng nghe toàn bộ khu vực chat)
+        document.getElementById('chatContainer').addEventListener('click', function(e) {
+            // Nếu click trúng một phần tử có class 'chat-image'
+            if (e.target && e.target.classList.contains('chat-image')) {
+                const modal = document.getElementById('imageModal');
+                const modalImg = document.getElementById('expandedImg');
+
+                // Hiện lớp đen và gán link ảnh vào
+                modal.style.display = "block";
+                modalImg.src = e.target.src;
+            }
+        });
+
+        // Tắt ảnh khi click vào dấu X hoặc click ra ngoài vùng đen
+        document.getElementById('imageModal').addEventListener('click', function(e) {
+            // Chỉ đóng khi click vào lớp nền (imageModal) hoặc dấu X (close-modal)
+            if (e.target.id === 'imageModal' || e.target.classList.contains('close-modal')) {
+                this.style.display = "none";
+            }
         });
     </script>
 </body>
