@@ -12,10 +12,14 @@ namespace SignalR_Demo.Controllers
         private readonly ILogger<HomeController> _logger;
         private readonly ApplicationDbContext _context;
 
-        public HomeController(ILogger<HomeController> logger, ApplicationDbContext context)
+        // Thêm trường để lưu trữ IWebHostEnvironment
+        private readonly IWebHostEnvironment _env;
+
+        public HomeController(ILogger<HomeController> logger, ApplicationDbContext context, IWebHostEnvironment env)
         {
             _logger = logger;
             _context = context;
+            _env = env;
         }
 
         public IActionResult Index()
@@ -27,6 +31,35 @@ namespace SignalR_Demo.Controllers
                                   .OrderBy(m => m.Timestamp)
                                   .ToList();
             return View(history);
+        }
+
+        // Xử lý Upload Ảnh
+        [HttpPost]
+        public async Task<IActionResult> UploadImage(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "Không có file nào được chọn" });
+
+            // Tạo thư mục 'uploads' trong wwwroot nếu chưa có
+            var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads");
+            if (!Directory.Exists(uploadsFolder))
+            {
+                Directory.CreateDirectory(uploadsFolder);
+            }
+
+            // Tạo tên file độc nhất (tránh trùng lặp)
+            var fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
+            var filePath = Path.Combine(uploadsFolder, fileName);
+
+            // Lưu file vào ổ cứng Server
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // Trả về đường dẫn để hiển thị trên web
+            var imageUrl = $"/uploads/{fileName}";
+            return Ok(new { url = imageUrl });
         }
 
         public IActionResult Privacy()
