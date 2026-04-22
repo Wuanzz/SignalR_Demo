@@ -100,46 +100,60 @@
 
     <div class="container mt-3">
         <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
-                        <h5 class="mb-0 fw-bold text-primary">Phòng Chat Chung</h5>
-                        <span class="badge bg-success rounded-pill">Online</span>
-                    </div>
-
-                    <div class="card-body p-0">
-                        <div id="chatContainer" class="chat-container m-3 shadow-inner">
-                            <div class="system-message">Chào mừng đến với hệ thống chat!</div>
-
-                            @if (Model != null)
-                            {
-                                @foreach (var msg in Model)
-                                {
-                                    // Kiểm tra tin nhắn của mình bằng cách so sánh với User Identity
-                                    var isMine = msg.User == User.Identity?.Name;
-
-                                    <div class="message-row @(isMine ? "row-mine" : "row-theirs")">
-                                        @if (!isMine)
-                                        {
-                                            <div class="sender-name">@msg.User</div>
-                                        }
-                                        <div class="chat-bubble shadow-sm" title="@msg.Timestamp.ToString("HH:mm dd/MM/yyyy")">
-                                            @msg.Message
-                                        </div>
-                                    </div>
-                                }
-                            }
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-white border-bottom py-3">
+                            <h6 class="mb-0 fw-bold text-success">
+                                <span class="me-1">●</span> Đang hoạt động (<span id="onlineCount">0</span>)
+                            </h6>
+                        </div>
+                        <div class="card-body p-2" style="overflow-y: auto; max-height: 500px;">
+                            <ul id="onlineUsersList" class="list-group list-group-flush">
+                                <li class="list-group-item text-muted text-center small">Đang tải...</li>
+                            </ul>
                         </div>
                     </div>
+                </div>
 
-                    <div class="card-footer bg-white border-top p-3">
-                        <div id="typingIndicator">Ai đó đang gõ...</div>
-                        <div class="row g-2 align-items-center mt-1">
-                            <div class="col-md-10">
-                                <input type="text" id="messageInput" class="form-control" placeholder="Nhập tin nhắn..." autocomplete="off" />
+                <div class="col-md-9">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                            <h5 class="mb-0 fw-bold text-primary">Phòng Chat Chung</h5>
+                        </div>
+
+                        <div class="card-body p-0">
+                            <div id="chatContainer" class="chat-container m-3 shadow-inner">
+                                <div class="system-message">Chào mừng đến với hệ thống chat!</div>
+
+                                @if (Model != null)
+                                {
+                                    @foreach (var msg in Model)
+                                    {
+                                        var isMine = msg.User == User.Identity?.Name;
+                                        <div class="message-row @(isMine ? "row-mine" : "row-theirs")">
+                                            @if (!isMine)
+                                            {
+                                                <div class="sender-name">@msg.User</div>
+                                            }
+                                            <div class="chat-bubble shadow-sm" title="@msg.Timestamp.ToString("HH:mm dd/MM/yyyy")">
+                                                @msg.Message
+                                            </div>
+                                        </div>
+                                    }
+                                }
                             </div>
-                            <div class="col-md-2">
-                                <button id="sendButton" class="btn btn-primary w-100 fw-bold">Gửi</button>
+                        </div>
+
+                        <div class="card-footer bg-white border-top p-3">
+                            <div id="typingIndicator">Ai đó đang gõ...</div>
+                            <div class="row g-2 align-items-center mt-1">
+                                <div class="col-md-10">
+                                    <input type="text" id="messageInput" class="form-control" placeholder="Nhập tin nhắn..." autocomplete="off" />
+                                </div>
+                                <div class="col-md-2">
+                                    <button id="sendButton" class="btn btn-primary w-100 fw-bold">Gửi</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -161,7 +175,7 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // 1. Nhận tin nhắn
+        // Nhận tin nhắn
         connection.on("ReceiveMessage", (user, message) => {
             const isMine = user === currentUser;
 
@@ -179,7 +193,7 @@
             document.getElementById("typingIndicator").style.display = "none";
         });
 
-        // 2. Nhận thông báo hệ thống
+        // Nhận thông báo hệ thống
         connection.on("ReceiveSystemMessage", (message) => {
             const div = document.createElement("div");
             div.className = "system-message";
@@ -188,7 +202,7 @@
             scrollToBottom();
         });
 
-        // 3. Nhận tín hiệu đang gõ
+        // Nhận tín hiệu đang gõ
         connection.on("UserTyping", (user) => {
             const indicator = document.getElementById("typingIndicator");
             indicator.textContent = `${user} đang gõ...`;
@@ -229,6 +243,33 @@
         window.onload = function() {
             scrollToBottom();
         };
+
+		// Cập nhật danh sách người dùng trực tuyến
+        connection.on("UpdateOnlineUsers", (users) => {
+            const userList = document.getElementById("onlineUsersList");
+            const onlineCount = document.getElementById("onlineCount");
+    
+            // Cập nhật số lượng
+            onlineCount.innerText = users.length;
+    
+            // Xóa trắng danh sách cũ
+            userList.innerHTML = "";
+    
+            // Vẽ lại danh sách mới
+            users.forEach(u => {
+                const li = document.createElement("li");
+                li.className = "list-group-item border-0 px-2 py-2 d-flex align-items-center";
+        
+                // Kiểm tra nếu là chính mình thì bôi đậm lên cho dễ nhìn
+                const isMe = u === currentUser;
+        
+                li.innerHTML = `
+                    <span class="text-success me-2" style="font-size: 0.8rem;">●</span>
+                    <span class="${isMe ? 'fw-bold' : ''}">${u} ${isMe ? '(Bạn)' : ''}</span>
+                `;
+                userList.appendChild(li);
+            });
+        });
     </script>
 </body>
 </html>
